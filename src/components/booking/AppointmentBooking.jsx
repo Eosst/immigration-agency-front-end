@@ -175,22 +175,50 @@ const AppointmentBooking = () => {
     try {
       setLoading(true);
       
-      // Create appointment datetime
+      // Create appointment datetime with timezone
       const dateStr = formatDateForAPI(selectedDate);
-      const appointmentDateTime = new Date(`${dateStr}T${selectedTime}:00`);
+      const timeStr = selectedTime;
+      
+      // Create a proper ISO string with timezone
+      // Using the user's local timezone
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const [hours, minutes] = timeStr.split(':');
+      
+      // Create date with specific time
+      const appointmentDate = new Date(year, selectedDate.getMonth(), parseInt(day), parseInt(hours), parseInt(minutes));
+      
+      // Get timezone offset in format +HH:MM or -HH:MM
+      const offset = -appointmentDate.getTimezoneOffset();
+      const offsetHours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+      const offsetMinutes = String(Math.abs(offset) % 60).padStart(2, '0');
+      const offsetSign = offset >= 0 ? '+' : '-';
+      const timezoneOffset = `${offsetSign}${offsetHours}:${offsetMinutes}`;
+      
+      // Create ISO string with timezone
+      const isoString = `${year}-${month}-${day}T${hours}:${minutes}:00${timezoneOffset}`;
       
       const appointmentData = {
-        ...formData,
-        appointmentDate: appointmentDateTime.toISOString(),
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        country: formData.country,
+        appointmentDate: isoString,
         duration: parseInt(selectedDuration),
+        consultationType: formData.consultationType,
+        clientPresentation: formData.clientPresentation,
         currency: selectedCurrency
       };
-
+  
+      console.log('Sending appointment data:', appointmentData);
+  
       // Create appointment
       const appointmentResponse = await appointmentAPI.create(appointmentData);
       const appointment = appointmentResponse.data;
       setCreatedAppointment(appointment);
-
+  
       // Upload documents if any
       if (formData.documents.length > 0) {
         try {
@@ -199,7 +227,7 @@ const AppointmentBooking = () => {
           console.error('Error uploading documents:', error);
         }
       }
-
+  
       // Create payment intent
       const paymentResponse = await paymentAPI.createIntent(appointment.id);
       
@@ -208,7 +236,20 @@ const AppointmentBooking = () => {
       
     } catch (error) {
       console.error('Error creating appointment:', error);
-      alert(error.response?.data?.message || 'Erreur lors de la création du rendez-vous');
+      console.error('Error response:', error.response?.data);
+      
+      // More detailed error message
+      let errorMessage = 'Erreur lors de la création du rendez-vous';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.validationErrors) {
+        errorMessage = Object.values(error.response.data.validationErrors).join(', ');
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

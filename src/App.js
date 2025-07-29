@@ -4,8 +4,10 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import HomePage from './pages/HomePage';
 import BookingPage from './pages/BookingPage';
+import AdminLoginPage from './pages/AdminLoginPage';
+import AdminDashboard from './pages/AdminDashboard';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import './styles/global.css';
-
 function App() {
   return (
     <Router>
@@ -38,6 +40,15 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/booking" element={<BookingPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route 
+            path="/admin/dashboard" 
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
         </Routes>
       </div>
     </Router>
