@@ -1,7 +1,7 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X } from 'lucide-react';
+import { Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays } from 'lucide-react';
 import { appointmentAPI, availabilityAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Header from '../components/common/Header';
@@ -13,12 +13,15 @@ const AdminDashboard = () => {
   const [blockedPeriods, setBlockedPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockType, setBlockType] = useState('time'); // 'time', 'day', 'range'
   const [blockForm, setBlockForm] = useState({
     date: '',
+    endDate: '',
     startTime: '',
     endTime: '',
     reason: 'VACATION',
-    notes: ''
+    notes: '',
+    fullDay: false
   });
   const [stats, setStats] = useState({
     total: 0,
@@ -94,22 +97,54 @@ const AdminDashboard = () => {
     navigate('/admin/login');
   };
 
+  const resetBlockForm = () => {
+    setBlockForm({
+      date: '',
+      endDate: '',
+      startTime: '',
+      endTime: '',
+      reason: 'VACATION',
+      notes: '',
+      fullDay: false
+    });
+    setBlockType('time');
+  };
+
   const handleBlockPeriod = async (e) => {
     e.preventDefault();
     try {
-      await availabilityAPI.blockPeriod(blockForm);
-      toast.success('Time period blocked successfully');
+      const requestData = {
+        date: blockForm.date,
+        reason: blockForm.reason,
+        notes: blockForm.notes
+      };
+
+      if (blockType === 'day') {
+        requestData.fullDay = true;
+      } else if (blockType === 'range') {
+        requestData.endDate = blockForm.endDate;
+        requestData.fullDay = true;
+      } else {
+        requestData.startTime = blockForm.startTime;
+        requestData.endTime = blockForm.endTime;
+        requestData.fullDay = false;
+      }
+
+      await availabilityAPI.blockPeriod(requestData);
+      
+      let successMessage = 'Time period blocked successfully';
+      if (blockType === 'day') {
+        successMessage = 'Day blocked successfully';
+      } else if (blockType === 'range') {
+        successMessage = 'Date range blocked successfully';
+      }
+      
+      toast.success(successMessage);
       setShowBlockModal(false);
-      setBlockForm({
-        date: '',
-        startTime: '',
-        endTime: '',
-        reason: 'VACATION',
-        notes: ''
-      });
+      resetBlockForm();
       fetchBlockedPeriods();
     } catch (error) {
-      toast.error('Failed to block time period');
+      toast.error('Failed to block period');
       console.error('Error blocking period:', error);
     }
   };
@@ -148,6 +183,62 @@ const AdminDashboard = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const formatTime = (time) => {
+    if (!time) return '';
+    return time.substring(0, 5); // Convert HH:mm:ss to HH:mm
+  };
+
+  const isFullDayBlock = (period) => {
+    return period.startTime === '00:00:00' && period.endTime === '23:59:00';
+  };
+
+  // Group blocked periods by date range
+  const groupBlockedPeriods = (periods) => {
+    const grouped = [];
+    const dateMap = new Map();
+
+    periods.forEach(period => {
+      const key = `${period.reason}-${period.notes}-${isFullDayBlock(period)}`;
+      if (!dateMap.has(key)) {
+        dateMap.set(key, []);
+      }
+      dateMap.get(key).push(period);
+    });
+
+    dateMap.forEach((periods, key) => {
+      // Sort periods by date
+      periods.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      // Check if it's a consecutive date range
+      let rangeStart = 0;
+      for (let i = 1; i <= periods.length; i++) {
+        if (i === periods.length || 
+            new Date(periods[i].date) - new Date(periods[i-1].date) !== 86400000) {
+          // End of range found
+          if (i - rangeStart > 1) {
+            // It's a range
+            grouped.push({
+              type: 'range',
+              startDate: periods[rangeStart].date,
+              endDate: periods[i-1].date,
+              periods: periods.slice(rangeStart, i),
+              ...periods[rangeStart]
+            });
+          } else {
+            // Single day
+            grouped.push({
+              type: 'single',
+              ...periods[rangeStart]
+            });
+          }
+          rangeStart = i;
+        }
+      }
+    });
+
+    return grouped.sort((a, b) => new Date(a.date || a.startDate) - new Date(b.date || b.startDate));
   };
 
   return (
@@ -344,13 +435,38 @@ const AdminDashboard = () => {
             <>
               <div className="p-6 border-b flex justify-between items-center">
                 <h2 className="text-xl font-bold">Blocked Periods</h2>
-                <button
-                  onClick={() => setShowBlockModal(true)}
-                  className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="mr-2" size={20} />
-                  Block Time
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setBlockType('time');
+                      setShowBlockModal(true);
+                    }}
+                    className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Clock className="mr-2" size={20} />
+                    Block Time
+                  </button>
+                  <button
+                    onClick={() => {
+                      setBlockType('day');
+                      setShowBlockModal(true);
+                    }}
+                    className="flex items-center bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    <Calendar className="mr-2" size={20} />
+                    Block Day
+                  </button>
+                  <button
+                    onClick={() => {
+                      setBlockType('range');
+                      setShowBlockModal(true);
+                    }}
+                    className="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <CalendarDays className="mr-2" size={20} />
+                    Block Date Range
+                  </button>
+                </div>
               </div>
 
               {loading ? (
@@ -364,34 +480,80 @@ const AdminDashboard = () => {
               ) : (
                 <div className="p-6">
                   <div className="grid gap-4">
-                    {blockedPeriods.map((period) => (
-                      <div key={period.id} className="border rounded-lg p-4 flex justify-between items-center">
-                        <div>
-                          <p className="font-semibold">
-                            {new Date(period.date).toLocaleDateString('fr-CA')}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {period.startTime} - {period.endTime}
-                          </p>
-                          <p className="text-sm">
-                            <span className="font-medium">Reason:</span> {period.reason}
-                          </p>
-                          {period.notes && (
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Notes:</span> {period.notes}
-                            </p>
-                          )}
-                        </div>
-                        {!period.appointmentId && (
-                          <button
-                            onClick={() => handleUnblockPeriod(period.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <X size={20} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    {groupBlockedPeriods(blockedPeriods).map((item, index) => {
+                      if (item.type === 'range') {
+                        return (
+                          <div key={`range-${index}`} className="border rounded-lg p-4 bg-indigo-50">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-semibold text-lg text-indigo-900">
+                                  {new Date(item.startDate).toLocaleDateString('fr-CA')} - {new Date(item.endDate).toLocaleDateString('fr-CA')}
+                                </p>
+                                <p className="text-sm text-indigo-700">
+                                  {item.periods.length} days blocked
+                                </p>
+                                <p className="text-sm mt-1">
+                                  <span className="font-medium">Reason:</span> {item.reason}
+                                </p>
+                                {item.notes && (
+                                  <p className="text-sm text-gray-600">
+                                    <span className="font-medium">Notes:</span> {item.notes}
+                                  </p>
+                                )}
+                              </div>
+                              {!item.appointmentId && (
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to unblock all ${item.periods.length} days?`)) {
+                                      Promise.all(item.periods.map(p => handleUnblockPeriod(p.id)));
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-800 p-2"
+                                >
+                                  <X size={20} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      } else {
+                        const period = item;
+                        return (
+                          <div key={period.id} className={`border rounded-lg p-4 flex justify-between items-center ${
+                            isFullDayBlock(period) ? 'bg-purple-50' : 'bg-gray-50'
+                          }`}>
+                            <div>
+                              <p className="font-semibold">
+                                {new Date(period.date).toLocaleDateString('fr-CA')}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {isFullDayBlock(period) ? (
+                                  <span className="text-purple-700 font-medium">Entire day blocked</span>
+                                ) : (
+                                  `${formatTime(period.startTime)} - ${formatTime(period.endTime)}`
+                                )}
+                              </p>
+                              <p className="text-sm">
+                                <span className="font-medium">Reason:</span> {period.reason}
+                              </p>
+                              {period.notes && (
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Notes:</span> {period.notes}
+                                </p>
+                              )}
+                            </div>
+                            {!period.appointmentId && (
+                              <button
+                                onClick={() => handleUnblockPeriod(period.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <X size={20} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+                    })}
                   </div>
                 </div>
               )}
@@ -404,11 +566,17 @@ const AdminDashboard = () => {
       {showBlockModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold mb-4">Block Time Period</h3>
+            <h3 className="text-xl font-bold mb-4">
+              {blockType === 'time' && 'Block Time Period'}
+              {blockType === 'day' && 'Block Entire Day'}
+              {blockType === 'range' && 'Block Date Range'}
+            </h3>
             
             <form onSubmit={handleBlockPeriod} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Date</label>
+                <label className="block text-sm font-medium mb-1">
+                  {blockType === 'range' ? 'Start Date' : 'Date'}
+                </label>
                 <input
                   type="date"
                   value={blockForm.date}
@@ -419,28 +587,44 @@ const AdminDashboard = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {blockType === 'range' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Start Time</label>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
                   <input
-                    type="time"
-                    value={blockForm.startTime}
-                    onChange={(e) => setBlockForm({...blockForm, startTime: e.target.value + ':00'})}
+                    type="date"
+                    value={blockForm.endDate}
+                    onChange={(e) => setBlockForm({...blockForm, endDate: e.target.value})}
                     className="w-full p-2 border rounded-lg"
                     required
+                    min={blockForm.date || new Date().toISOString().split('T')[0]}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">End Time</label>
-                  <input
-                    type="time"
-                    value={blockForm.endTime}
-                    onChange={(e) => setBlockForm({...blockForm, endTime: e.target.value + ':00'})}
-                    className="w-full p-2 border rounded-lg"
-                    required
-                  />
+              )}
+
+              {blockType === 'time' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      value={blockForm.startTime}
+                      onChange={(e) => setBlockForm({...blockForm, startTime: e.target.value + ':00'})}
+                      className="w-full p-2 border rounded-lg"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={blockForm.endTime}
+                      onChange={(e) => setBlockForm({...blockForm, endTime: e.target.value + ':00'})}
+                      className="w-full p-2 border rounded-lg"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-1">Reason</label>
@@ -469,7 +653,10 @@ const AdminDashboard = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setShowBlockModal(false)}
+                  onClick={() => {
+                    setShowBlockModal(false);
+                    resetBlockForm();
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Cancel

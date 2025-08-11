@@ -67,7 +67,9 @@ const AppointmentBooking = () => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const formatted = `${year}-${month}-${day}`;
+    console.log('Formatting date for API:', date, '->', formatted);
+    return formatted;
   };
 
   const generateCalendarDays = () => {
@@ -179,8 +181,11 @@ const AppointmentBooking = () => {
       const dateStr = formatDateForAPI(selectedDate);
       const timeStr = selectedTime;
       
+      console.log('Selected date:', selectedDate);
+      console.log('Selected time:', selectedTime);
+      console.log('Selected duration:', selectedDuration);
+      
       // Create a proper ISO string with timezone
-      // Using the user's local timezone
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -198,6 +203,10 @@ const AppointmentBooking = () => {
       
       // Create ISO string with timezone
       const isoString = `${year}-${month}-${day}T${hours}:${minutes}:00${timezoneOffset}`;
+      
+      console.log('ISO string being sent:', isoString);
+      console.log('Expected blocking period: from', timeStr, 'to', 
+        `${parseInt(hours) + Math.floor(parseInt(selectedDuration) / 60)}:${(parseInt(minutes) + parseInt(selectedDuration) % 60).toString().padStart(2, '0')}`);
       
       const appointmentData = {
         firstName: formData.firstName,
@@ -363,43 +372,54 @@ const AppointmentBooking = () => {
 
             {/* Time Slots */}
             {selectedDate && dayAvailability && (
-              <div>
-                <h3 className="text-lg font-semibold mb-4">
-                  Créneaux disponibles pour le {formatDate(selectedDate)}
-                </h3>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  </div>
-                ) : dayAvailability.fullyBooked ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <AlertCircle className="mx-auto mb-2" size={32} />
-                    <p>Aucun créneau disponible pour cette date</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 gap-3">
-                    {dayAvailability.availableSlots.map(slot => {
-                      const hasAvailability = slot.available30Min || slot.available60Min || slot.available90Min;
-                      return (
-                        <button
-                          key={slot.startTime}
-                          onClick={() => hasAvailability && setSelectedTime(slot.startTime)}
-                          disabled={!hasAvailability}
-                          className={`p-3 rounded-lg transition-all ${
-                            !hasAvailability ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                            selectedTime === slot.startTime ? 
-                            'bg-blue-600 text-white' : 
-                            'bg-gray-100 hover:bg-blue-100'
-                          }`}
-                        >
-                          {slot.startTime}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+  <div>
+    <h3 className="text-lg font-semibold mb-4">
+      Créneaux disponibles pour le {formatDate(selectedDate)}
+    </h3>
+    
+    {/* Debug info - remove in production */}
+    {process.env.NODE_ENV === 'development' && (
+      <div className="mb-4 p-3 bg-gray-100 rounded text-xs">
+        <p>Debug: Selected time: {selectedTime}</p>
+        <p>Debug: Selected duration: {selectedDuration}</p>
+        <p>Debug: Available slots: {dayAvailability.availableSlots.length}</p>
+      </div>
+    )}
+    
+    {loading ? (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+      </div>
+    ) : dayAvailability.fullyBooked ? (
+      <div className="text-center py-8 text-gray-500">
+        <AlertCircle className="mx-auto mb-2" size={32} />
+        <p>Aucun créneau disponible pour cette date</p>
+      </div>
+    ) : (
+      <div className="grid grid-cols-4 gap-3">
+        {dayAvailability.availableSlots.map(slot => {
+          const hasAvailability = slot.available30Min || slot.available60Min || slot.available90Min;
+          return (
+            <button
+              key={slot.startTime}
+              onClick={() => hasAvailability && setSelectedTime(slot.startTime)}
+              disabled={!hasAvailability}
+              className={`p-3 rounded-lg transition-all ${
+                !hasAvailability ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                selectedTime === slot.startTime ? 
+                'bg-blue-600 text-white' : 
+                'bg-gray-100 hover:bg-blue-100'
+              }`}
+              title={`30min: ${slot.available30Min ? '✓' : '✗'}, 60min: ${slot.available60Min ? '✓' : '✗'}, 90min: ${slot.available90Min ? '✓' : '✗'}`}
+            >
+              {slot.startTime}
+            </button>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
           </div>
         )}
 
