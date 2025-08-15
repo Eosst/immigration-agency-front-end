@@ -425,7 +425,7 @@ const AppointmentBooking = () => {
               }`}
               title={`30min: ${slot.available30Min ? '✓' : '✗'}, 60min: ${slot.available60Min ? '✓' : '✗'}, 90min: ${slot.available90Min ? '✓' : '✗'}`}
             >
-              {slot.startTime}
+              {slot.startTime.substring(0, 5)}
             </button>
           );
         })}

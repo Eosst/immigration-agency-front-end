@@ -30,18 +30,18 @@ export const createISOWithTimezone = (date, time) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  
-  // Create datetime in user's timezone
-  const dateTimeStr = `${year}-${month}-${day}T${time}:00`;
+
+  // The 'time' variable from the backend is already formatted as HH:mm:ss.
+  // We don't need to append anything.
+  const dateTimeStr = `${year}-${month}-${day}T${time}`;
   const zonedDate = new Date(dateTimeStr);
-  
-  // Get timezone offset
+
   const offset = -zonedDate.getTimezoneOffset();
   const offsetHours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
   const offsetMinutes = String(Math.abs(offset) % 60).padStart(2, '0');
   const offsetSign = offset >= 0 ? '+' : '-';
   const timezoneOffset = `${offsetSign}${offsetHours}:${offsetMinutes}`;
-  
-  // Return ISO string with timezone
-  return `${year}-${month}-${day}T${time}:00${timezoneOffset}`;
+
+  // Return ISO string with the correct time format and timezone
+  return `${year}-${month}-${day}T${time}${timezoneOffset}`;
 };
