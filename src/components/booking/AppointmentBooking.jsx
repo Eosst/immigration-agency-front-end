@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, DollarSign, Upload, ChevronLeft, ChevronRight, Check, AlertCircle } from 'lucide-react';
 import { appointmentAPI, availabilityAPI, paymentAPI, documentAPI } from '../../services/api';
 import { CONSULTATION_TYPES, PRICES } from '../../utils/constants';
+import { getUserTimezone, createISOWithTimezone } from '../../utils/timezone';
 
 const AppointmentBooking = () => {
+  const userTimezone = getUserTimezone();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
@@ -43,6 +45,7 @@ const AppointmentBooking = () => {
     try {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
+      // Pass timezone automatically (handled in API service)
       const response = await availabilityAPI.getMonthAvailability(year, month);
       setMonthAvailability(response.data.dayAvailability);
     } catch (error) {
@@ -54,6 +57,7 @@ const AppointmentBooking = () => {
     try {
       setLoading(true);
       const dateStr = formatDateForAPI(selectedDate);
+      // Pass timezone automatically (handled in API service)
       const response = await availabilityAPI.getDayAvailability(dateStr);
       setDayAvailability(response.data);
     } catch (error) {
@@ -180,6 +184,7 @@ const AppointmentBooking = () => {
       // Create appointment datetime with timezone
       const dateStr = formatDateForAPI(selectedDate);
       const timeStr = selectedTime;
+      const isoString = createISOWithTimezone(selectedDate, selectedTime);
       
       console.log('Selected date:', selectedDate);
       console.log('Selected time:', selectedTime);
@@ -202,7 +207,7 @@ const AppointmentBooking = () => {
       const timezoneOffset = `${offsetSign}${offsetHours}:${offsetMinutes}`;
       
       // Create ISO string with timezone
-      const isoString = `${year}-${month}-${day}T${hours}:${minutes}:00${timezoneOffset}`;
+      // const isoString = `${year}-${month}-${day}T${hours}:${minutes}:00${timezoneOffset}`;
       
       console.log('ISO string being sent:', isoString);
       console.log('Expected blocking period: from', timeStr, 'to', 
@@ -288,6 +293,9 @@ const AppointmentBooking = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
+      <div className="mb-4 text-sm text-gray-600 text-center">
+          <span>Fuseau horaire: <strong>{userTimezone}</strong></span>
+        </div>
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -373,9 +381,14 @@ const AppointmentBooking = () => {
             {/* Time Slots */}
             {selectedDate && dayAvailability && (
   <div>
-    <h3 className="text-lg font-semibold mb-4">
-      Créneaux disponibles pour le {formatDate(selectedDate)}
-    </h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Créneaux disponibles pour le {formatDate(selectedDate)}
+              {dayAvailability.timezone && dayAvailability.timezone !== 'UTC' && (
+                <span className="text-sm text-gray-500 ml-2">
+                  ({dayAvailability.timezone})
+                </span>
+              )}
+            </h3>
     
     {/* Debug info - remove in production */}
     {process.env.NODE_ENV === 'development' && (

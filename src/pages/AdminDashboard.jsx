@@ -5,8 +5,10 @@ import { Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays 
 import { appointmentAPI, availabilityAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Header from '../components/common/Header';
+import { getUserTimezone, formatInTimezone } from '../utils/timezone';
 
 const AdminDashboard = () => {
+  const userTimezone = getUserTimezone();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('appointments');
   const [appointments, setAppointments] = useState([]);
@@ -116,7 +118,8 @@ const AdminDashboard = () => {
       const requestData = {
         date: blockForm.date,
         reason: blockForm.reason,
-        notes: blockForm.notes
+        notes: blockForm.notes,
+        timezone: userTimezone
       };
 
       if (blockType === 'day') {
@@ -176,13 +179,18 @@ const AdminDashboard = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('fr-CA', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return formatInTimezone(new Date(dateString), 'MMM dd, yyyy HH:mm');
+    } catch (error) {
+      // Fallback to basic formatting if timezone utils fail
+      return new Date(dateString).toLocaleString('fr-CA', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
   };
 
   const formatTime = (time) => {
@@ -266,6 +274,11 @@ const AdminDashboard = () => {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+          <p className="text-sm text-blue-800">
+            All times displayed in: <strong>{userTimezone}</strong>
+          </p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="flex items-center justify-between">

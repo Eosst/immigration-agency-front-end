@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getUserTimezone } from '../utils/timezone';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
 
@@ -29,9 +30,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized access
       localStorage.removeItem('authToken');
-      // Redirect to login if needed
     }
     return Promise.reject(error);
   }
@@ -57,14 +56,26 @@ export const appointmentAPI = {
 };
 
 export const availabilityAPI = {
-  // Get available times for a specific day
-  getDayAvailability: (date) => api.get(`/availability/day/${date}`),
+  // Get available times for a specific day with timezone
+  getDayAvailability: (date, timezone = null) => {
+    const tz = timezone || getUserTimezone();
+    return api.get(`/availability/day/${date}?timezone=${encodeURIComponent(tz)}`);
+  },
   
-  // Get month availability overview
-  getMonthAvailability: (year, month) => api.get(`/availability/month/${year}/${month}`),
+  // Get month availability overview with timezone
+  getMonthAvailability: (year, month, timezone = null) => {
+    const tz = timezone || getUserTimezone();
+    return api.get(`/availability/month/${year}/${month}?timezone=${encodeURIComponent(tz)}`);
+  },
   
-  // Block time period (admin)
-  blockPeriod: (data) => api.post('/availability/block', data),
+  // Block time period (admin) with timezone
+  blockPeriod: (data) => {
+    const requestData = {
+      ...data,
+      timezone: data.timezone || getUserTimezone()
+    };
+    return api.post('/availability/block', requestData);
+  },
   
   // Unblock period (admin)
   unblockPeriod: (id) => api.delete(`/availability/block/${id}`),
