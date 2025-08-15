@@ -3,6 +3,12 @@ import { Calendar, Clock, DollarSign, Upload, ChevronLeft, ChevronRight, Check, 
 import { appointmentAPI, availabilityAPI, paymentAPI, documentAPI } from '../../services/api';
 import { CONSULTATION_TYPES, PRICES } from '../../utils/constants';
 import { getUserTimezone, createISOWithTimezone } from '../../utils/timezone';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import PaymentForm from './PaymentForm';
+
+// Initialize Stripe - Replace with your publishable key
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key_here');
 
 const AppointmentBooking = () => {
   const userTimezone = getUserTimezone();
@@ -15,6 +21,7 @@ const AppointmentBooking = () => {
   const [dayAvailability, setDayAvailability] = useState(null);
   const [loading, setLoading] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
+  const [paymentClientSecret, setPaymentClientSecret] = useState(null);
   
   const [formData, setFormData] = useState({
     consultationType: '',
@@ -45,7 +52,6 @@ const AppointmentBooking = () => {
     try {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
-      // Pass timezone automatically (handled in API service)
       const response = await availabilityAPI.getMonthAvailability(year, month);
       setMonthAvailability(response.data.dayAvailability);
     } catch (error) {
@@ -57,7 +63,6 @@ const AppointmentBooking = () => {
     try {
       setLoading(true);
       const dateStr = formatDateForAPI(selectedDate);
-      // Pass timezone automatically (handled in API service)
       const response = await availabilityAPI.getDayAvailability(dateStr);
       setDayAvailability(response.data);
     } catch (error) {
@@ -71,9 +76,7 @@ const AppointmentBooking = () => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    const formatted = `${year}-${month}-${day}`;
-    console.log('Formatting date for API:', date, '->', formatted);
-    return formatted;
+    return `${year}-${month}-${day}`;
   };
 
   const generateCalendarDays = () => {
@@ -86,12 +89,10 @@ const AppointmentBooking = () => {
 
     const days = [];
     
-    // Add empty cells for days before month starts
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
     
-    // Add days of the month
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(year, month, i));
     }
@@ -181,37 +182,8 @@ const AppointmentBooking = () => {
     try {
       setLoading(true);
       
-      // Create appointment datetime with timezone
-      const dateStr = formatDateForAPI(selectedDate);
-      const timeStr = selectedTime;
+      // Create appointment
       const isoString = createISOWithTimezone(selectedDate, selectedTime);
-      
-      console.log('Selected date:', selectedDate);
-      console.log('Selected time:', selectedTime);
-      console.log('Selected duration:', selectedDuration);
-      
-      // Create a proper ISO string with timezone
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const [hours, minutes] = timeStr.split(':');
-      
-      // Create date with specific time
-      const appointmentDate = new Date(year, selectedDate.getMonth(), parseInt(day), parseInt(hours), parseInt(minutes));
-      
-      // Get timezone offset in format +HH:MM or -HH:MM
-      const offset = -appointmentDate.getTimezoneOffset();
-      const offsetHours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
-      const offsetMinutes = String(Math.abs(offset) % 60).padStart(2, '0');
-      const offsetSign = offset >= 0 ? '+' : '-';
-      const timezoneOffset = `${offsetSign}${offsetHours}:${offsetMinutes}`;
-      
-      // Create ISO string with timezone
-      // const isoString = `${year}-${month}-${day}T${hours}:${minutes}:00${timezoneOffset}`;
-      
-      console.log('ISO string being sent:', isoString);
-      console.log('Expected blocking period: from', timeStr, 'to', 
-        `${parseInt(hours) + Math.floor(parseInt(selectedDuration) / 60)}:${(parseInt(minutes) + parseInt(selectedDuration) % 60).toString().padStart(2, '0')}`);
       
       const appointmentData = {
         firstName: formData.firstName,
@@ -225,8 +197,6 @@ const AppointmentBooking = () => {
         clientPresentation: formData.clientPresentation,
         currency: selectedCurrency
       };
-  
-      console.log('Sending appointment data:', appointmentData);
   
       // Create appointment
       const appointmentResponse = await appointmentAPI.create(appointmentData);
@@ -242,31 +212,43 @@ const AppointmentBooking = () => {
         }
       }
   
-      // Create payment intent
+      // Create payment intent and get client secret
       const paymentResponse = await paymentAPI.createIntent(appointment.id);
+      setPaymentClientSecret(paymentResponse.data.clientSecret);
       
-      // For now, just show success
-      setCurrentStep(5); // Success step
+      // Move to payment step
+      setCurrentStep(5); // Payment step
       
     } catch (error) {
       console.error('Error creating appointment:', error);
-      console.error('Error response:', error.response?.data);
-      
-      // More detailed error message
       let errorMessage = 'Erreur lors de la création du rendez-vous';
       
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
-      } else if (error.response?.data?.validationErrors) {
-        errorMessage = Object.values(error.response.data.validationErrors).join(', ');
-      } else if (error.message) {
-        errorMessage = error.message;
       }
       
       alert(errorMessage);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = async (paymentIntent) => {
+    try {
+      // Confirm payment on backend
+      await appointmentAPI.confirmPayment(createdAppointment.id, paymentIntent.id);
+      
+      // Move to success step
+      setCurrentStep(6);
+    } catch (error) {
+      console.error('Error confirming payment:', error);
+      alert('Paiement reçu mais erreur lors de la confirmation. Veuillez nous contacter.');
+    }
+  };
+
+  const handlePaymentError = (error) => {
+    console.error('Payment error:', error);
+    alert(`Erreur de paiement: ${error.message}`);
   };
 
   const getAvailableTimesForDuration = (duration) => {
@@ -293,21 +275,22 @@ const AppointmentBooking = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-      <div className="mb-4 text-sm text-gray-600 text-center">
+        <div className="mb-4 text-sm text-gray-600 text-center">
           <span>Fuseau horaire: <strong>{userTimezone}</strong></span>
         </div>
+        
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            {[1, 2, 3, 4].map((step) => (
+            {[1, 2, 3, 4, 5].map((step) => (
               <div key={step} className="flex items-center">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
                   currentStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
                 }`}>
                   {currentStep > step ? <Check size={20} /> : step}
                 </div>
-                {step < 4 && (
-                  <div className={`w-24 h-1 ${
+                {step < 5 && (
+                  <div className={`w-20 h-1 ${
                     currentStep > step ? 'bg-blue-600' : 'bg-gray-300'
                   }`} />
                 )}
@@ -319,6 +302,7 @@ const AppointmentBooking = () => {
             <span>Durée & Tarif</span>
             <span>Informations</span>
             <span>Confirmation</span>
+            <span>Paiement</span>
           </div>
         </div>
 
@@ -380,59 +364,44 @@ const AppointmentBooking = () => {
 
             {/* Time Slots */}
             {selectedDate && dayAvailability && (
-  <div>
-            <h3 className="text-lg font-semibold mb-4">
-              Créneaux disponibles pour le {formatDate(selectedDate)}
-              {dayAvailability.timezone && dayAvailability.timezone !== 'UTC' && (
-                <span className="text-sm text-gray-500 ml-2">
-                  ({dayAvailability.timezone})
-                </span>
-              )}
-            </h3>
-    
-    {/* Debug info - remove in production */}
-    {process.env.NODE_ENV === 'development' && (
-      <div className="mb-4 p-3 bg-gray-100 rounded text-xs">
-        <p>Debug: Selected time: {selectedTime}</p>
-        <p>Debug: Selected duration: {selectedDuration}</p>
-        <p>Debug: Available slots: {dayAvailability.availableSlots.length}</p>
-      </div>
-    )}
-    
-    {loading ? (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-      </div>
-    ) : dayAvailability.fullyBooked ? (
-      <div className="text-center py-8 text-gray-500">
-        <AlertCircle className="mx-auto mb-2" size={32} />
-        <p>Aucun créneau disponible pour cette date</p>
-      </div>
-    ) : (
-      <div className="grid grid-cols-4 gap-3">
-        {dayAvailability.availableSlots.map(slot => {
-          const hasAvailability = slot.available30Min || slot.available60Min || slot.available90Min;
-          return (
-            <button
-              key={slot.startTime}
-              onClick={() => hasAvailability && setSelectedTime(slot.startTime)}
-              disabled={!hasAvailability}
-              className={`p-3 rounded-lg transition-all ${
-                !hasAvailability ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                selectedTime === slot.startTime ? 
-                'bg-blue-600 text-white' : 
-                'bg-gray-100 hover:bg-blue-100'
-              }`}
-              title={`30min: ${slot.available30Min ? '✓' : '✗'}, 60min: ${slot.available60Min ? '✓' : '✗'}, 90min: ${slot.available90Min ? '✓' : '✗'}`}
-            >
-              {slot.startTime.substring(0, 5)}
-            </button>
-          );
-        })}
-      </div>
-    )}
-  </div>
-)}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">
+                  Créneaux disponibles pour le {formatDate(selectedDate)}
+                </h3>
+                
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  </div>
+                ) : dayAvailability.fullyBooked ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <AlertCircle className="mx-auto mb-2" size={32} />
+                    <p>Aucun créneau disponible pour cette date</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-3">
+                    {dayAvailability.availableSlots.map(slot => {
+                      const hasAvailability = slot.available30Min || slot.available60Min || slot.available90Min;
+                      return (
+                        <button
+                          key={slot.startTime}
+                          onClick={() => hasAvailability && setSelectedTime(slot.startTime)}
+                          disabled={!hasAvailability}
+                          className={`p-3 rounded-lg transition-all ${
+                            !hasAvailability ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                            selectedTime === slot.startTime ? 
+                            'bg-blue-600 text-white' : 
+                            'bg-gray-100 hover:bg-blue-100'
+                          }`}
+                        >
+                          {slot.startTime.substring(0, 5)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -685,7 +654,7 @@ const AppointmentBooking = () => {
 
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
               <p className="text-sm text-yellow-800">
-                En cliquant sur "Procéder au paiement", vous serez redirigé vers notre plateforme de paiement sécurisé.
+                En cliquant sur "Procéder au paiement", vous serez dirigé vers notre page de paiement sécurisé.
               </p>
             </div>
 
@@ -706,16 +675,36 @@ const AppointmentBooking = () => {
           </div>
         )}
 
-        {/* Success Step */}
-        {currentStep === 5 && createdAppointment && (
+        {/* Step 5: Payment */}
+        {currentStep === 5 && paymentClientSecret && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-6 flex items-center">
+              <DollarSign className="mr-3 text-green-600" />
+              Paiement sécurisé
+            </h2>
+
+            <Elements stripe={stripePromise} options={{ clientSecret: paymentClientSecret }}>
+              <PaymentForm
+                clientSecret={paymentClientSecret}
+                amount={calculateTotal()}
+                currency={selectedCurrency}
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+              />
+            </Elements>
+          </div>
+        )}
+
+        {/* Step 6: Success */}
+        {currentStep === 6 && createdAppointment && (
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="text-center">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="text-green-600" size={40} />
               </div>
-              <h2 className="text-2xl font-bold mb-4">Rendez-vous créé avec succès!</h2>
+              <h2 className="text-2xl font-bold mb-4">Paiement réussi!</h2>
               <p className="text-gray-600 mb-6">
-                Votre rendez-vous a été créé. Vous allez recevoir un email de confirmation.
+                Votre rendez-vous a été confirmé et payé. Vous allez recevoir un email de confirmation.
               </p>
               <div className="bg-gray-50 p-4 rounded-lg mb-6">
                 <p className="font-semibold">ID du rendez-vous:</p>
