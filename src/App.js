@@ -6,8 +6,10 @@ import HomePage from './pages/HomePage';
 import BookingPage from './pages/BookingPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboard from './pages/AdminDashboard';
+import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import './styles/global.css';
+
 function App() {
   return (
     <Router>
@@ -49,6 +51,8 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          {/* 404 Page - This catches all unmatched routes */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
     </Router>

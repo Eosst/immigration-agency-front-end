@@ -182,9 +182,10 @@ const AppointmentBooking = () => {
     try {
       setLoading(true);
       
-      // Create appointment
+      // Create ISO string with timezone
       const isoString = createISOWithTimezone(selectedDate, selectedTime);
       
+      // IMPORTANT: Include userTimezone in the appointment data
       const appointmentData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -195,14 +196,19 @@ const AppointmentBooking = () => {
         duration: parseInt(selectedDuration),
         consultationType: formData.consultationType,
         clientPresentation: formData.clientPresentation,
-        currency: selectedCurrency
+        currency: selectedCurrency,
+        userTimezone: userTimezone // THIS IS THE FIX - INCLUDE THE TIMEZONE
       };
-  
+      
+      // Debug logging
+      console.log('User timezone:', userTimezone);
+      console.log('Sending appointment data:', appointmentData);
+
       // Create appointment
       const appointmentResponse = await appointmentAPI.create(appointmentData);
       const appointment = appointmentResponse.data;
       setCreatedAppointment(appointment);
-  
+
       // Upload documents if any
       if (formData.documents.length > 0) {
         try {
@@ -211,7 +217,7 @@ const AppointmentBooking = () => {
           console.error('Error uploading documents:', error);
         }
       }
-  
+
       // Create payment intent and get client secret
       const paymentResponse = await paymentAPI.createIntent(appointment.id);
       setPaymentClientSecret(paymentResponse.data.clientSecret);
@@ -221,10 +227,17 @@ const AppointmentBooking = () => {
       
     } catch (error) {
       console.error('Error creating appointment:', error);
+      console.error('Error response:', error.response?.data);
+      
       let errorMessage = 'Erreur lors de la création du rendez-vous';
       
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+      } else if (error.response?.data?.validationErrors) {
+        const errors = Object.entries(error.response.data.validationErrors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join('\n');
+        errorMessage = `Erreurs de validation:\n${errors}`;
       }
       
       alert(errorMessage);
@@ -277,6 +290,8 @@ const AppointmentBooking = () => {
       <div className="max-w-4xl mx-auto">
         <div className="mb-4 text-sm text-gray-600 text-center">
           <span>Fuseau horaire: <strong>{userTimezone}</strong></span>
+          <br />
+          <span className="text-xs text-muted">Les heures seront affichées dans votre fuseau horaire local</span>
         </div>
         
         {/* Progress Bar */}
@@ -624,6 +639,7 @@ const AppointmentBooking = () => {
               <div className="p-4 bg-gray-50 rounded-lg">
                 <h3 className="font-semibold mb-2">Date et heure</h3>
                 <p>{formatDate(selectedDate)} à {selectedTime}</p>
+                <p className="text-sm text-gray-600">Fuseau horaire: {userTimezone}</p>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-lg">
