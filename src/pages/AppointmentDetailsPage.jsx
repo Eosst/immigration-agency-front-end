@@ -23,9 +23,10 @@ import {
 } from 'lucide-react';
 import { appointmentAPI, availabilityAPI, documentAPI } from '../services/api';
 import { CONSULTATION_TYPES, DURATIONS, PRICES } from '../utils/constants';
-import { formatInTimezone, getUserTimezone } from '../utils/timezone';
+import { formatInTimezone, getUserTimezone , createISOWithTimezone } from '../utils/timezone';
 import toast from 'react-hot-toast';
 import Header from '../components/common/Header';
+
 
 const AppointmentDetailsPage = () => {
   const { id } = useParams();
@@ -62,7 +63,7 @@ const AppointmentDetailsPage = () => {
     }
   }, [id]);
 
-  const fetchAppointmentDetails = async () => {
+   const fetchAppointmentDetails = async () => {
     try {
       setLoading(true);
       const response = await appointmentAPI.getById(id);
@@ -70,7 +71,6 @@ const AppointmentDetailsPage = () => {
       
       setAppointment(appointmentData);
       
-      // Parse the appointment date and time
       const appointmentDateTime = new Date(appointmentData.appointmentDate);
       const dateStr = appointmentDateTime.toISOString().split('T')[0];
       const timeStr = appointmentDateTime.toTimeString().split(' ')[0].substring(0, 5);
@@ -87,8 +87,12 @@ const AppointmentDetailsPage = () => {
         status: appointmentData.status || 'PENDING',
         amount: appointmentData.amount ? appointmentData.amount.toString() : '',
         currency: appointmentData.currency || 'CAD',
-        notes: appointmentData.notes || ''
+        notes: appointmentData.adminNotes || ''
       });
+
+      // FIX: Fetch available times for the existing appointment date
+      await fetchAvailableTimes(dateStr);
+
     } catch (error) {
       console.error('Error fetching appointment:', error);
       toast.error('Failed to load appointment details');
@@ -99,7 +103,6 @@ const AppointmentDetailsPage = () => {
       setLoading(false);
     }
   };
-
   const fetchDocuments = async () => {
     try {
       const response = await documentAPI.getAppointmentDocuments(id);
@@ -109,10 +112,28 @@ const AppointmentDetailsPage = () => {
     }
   };
 
-  const fetchAvailableTimes = async (date) => {
+const fetchAvailableTimes = async (date) => {
     try {
       const response = await availabilityAPI.getDayAvailability(date, userTimezone);
-      setAvailableTimes(response.data.availableTimes || []);
+      const availableSlots = response.data.availableSlots || [];
+      
+      // FIX: Filter out past time slots for today's date
+      const now = new Date();
+      const isToday = new Date(date).toDateString() === now.toDateString();
+
+      const futureTimes = availableSlots
+        .map(slot => slot.startTime.substring(0, 5))
+        .filter(time => {
+          if (!isToday) {
+            return true; // Keep all times for future dates
+          }
+          const [hours, minutes] = time.split(':');
+          const slotTime = new Date(date);
+          slotTime.setHours(hours, minutes, 0, 0);
+          return slotTime > now; // Keep only future times
+        });
+
+      setAvailableTimes(futureTimes);
     } catch (error) {
       console.error('Error fetching available times:', error);
       setAvailableTimes([]);
@@ -130,16 +151,17 @@ const AppointmentDetailsPage = () => {
     try {
       setSaving(true);
       
-      // Validate required fields
       if (!editForm.firstName || !editForm.lastName || !editForm.email || 
           !editForm.phone || !editForm.consultationType || !editForm.appointmentDate || 
           !editForm.appointmentTime) {
         toast.error('Please fill in all required fields');
+        setSaving(false);
         return;
       }
 
-      // Create the appointment date-time in ISO format
-      const appointmentDateTime = new Date(`${editForm.appointmentDate}T${editForm.appointmentTime}:00`);
+      // FIX: Use the same robust date creation as the booking page
+      const appointmentDateObject = new Date(editForm.appointmentDate);
+      const isoString = createISOWithTimezone(appointmentDateObject, editForm.appointmentTime + ':00');
       
       const updateData = {
         firstName: editForm.firstName,
@@ -148,18 +170,17 @@ const AppointmentDetailsPage = () => {
         phone: editForm.phone,
         consultationType: editForm.consultationType,
         duration: parseInt(editForm.duration),
-        appointmentDate: appointmentDateTime.toISOString(),
+        appointmentDate: isoString, // Use the correctly formatted string
         status: editForm.status,
         amount: parseFloat(editForm.amount) || 0,
         currency: editForm.currency,
-        notes: editForm.notes,
-        timezone: userTimezone
+        adminNotes: editForm.notes
       };
 
       await appointmentAPI.update(id, updateData);
       toast.success('Appointment updated successfully');
       setEditing(false);
-      await fetchAppointmentDetails(); // Refresh the data
+      await fetchAppointmentDetails();
     } catch (error) {
       console.error('Error updating appointment:', error);
       toast.error(error.response?.data?.message || 'Failed to update appointment');
@@ -167,7 +188,6 @@ const AppointmentDetailsPage = () => {
       setSaving(false);
     }
   };
-
   const handleDownloadDocument = async (documentId, fileName) => {
     try {
       const response = await documentAPI.downloadDocument(documentId);
