@@ -53,6 +53,9 @@ export const appointmentAPI = {
   
   // Cancel appointment
   cancel: (id) => api.delete(`/appointments/${id}`),
+
+
+  update: (id, data) => api.patch(`/appointments/${id}`, data),
 };
 
 export const availabilityAPI = {

@@ -1,8 +1,8 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays } from 'lucide-react';
-import { appointmentAPI, availabilityAPI } from '../services/api';
+import { Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays, FileText, Download } from 'lucide-react';
+import { appointmentAPI, availabilityAPI, documentAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Header from '../components/common/Header';
 import { getUserTimezone, formatInTimezone } from '../utils/timezone';
@@ -31,6 +31,10 @@ const AdminDashboard = () => {
     confirmed: 0,
     revenue: { CAD: 0, MAD: 0 }
   });
+
+  const [showDocsModal, setShowDocsModal] = useState(false);
+  const [currentDocs, setCurrentDocs] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in
@@ -175,6 +179,39 @@ const AdminDashboard = () => {
         toast.error('Failed to cancel appointment');
         console.error('Error cancelling appointment:', error);
       }
+    }
+  };
+
+  const handleViewDocuments = async (appointmentId) => {
+    setDocsLoading(true);
+    setShowDocsModal(true);
+    try {
+      const response = await documentAPI.getAppointmentDocuments(appointmentId);
+      setCurrentDocs(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch documents.');
+      console.error('Error fetching documents:', error);
+      setCurrentDocs([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
+  const handleDownloadDocument = async (documentId, fileName) => {
+    try {
+      const response = await documentAPI.downloadDocument(documentId);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Failed to download document.');
+      console.error('Error downloading document:', error);
     }
   };
 
@@ -396,7 +433,8 @@ const AdminDashboard = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {appointments.map((appointment) => (
-                        <tr key={appointment.id} className="hover:bg-gray-50">
+                        <tr key={appointment.id} className="hover:bg-gray-50"
+                        onClick={() => navigate(`/admin/appointments/${appointment.id}`)}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
                               <div className="text-sm font-medium text-gray-900">
@@ -429,12 +467,20 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {appointment.amount} {appointment.currency}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                            <button
+                              onClick={() => handleViewDocuments(appointment.id)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Documents"
+                            >
+                              <FileText size={18} />
+                            </button>
                             <button
                               onClick={() => handleCancelAppointment(appointment.id)}
                               className="text-red-600 hover:text-red-900"
+                              title="Cancel Appointment"
                             >
-                              Cancel
+                              <Ban size={18} />
                             </button>
                           </td>
                         </tr>
@@ -682,6 +728,43 @@ const AdminDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Documents Modal */}
+      {showDocsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <div className="flex justify-between items-center border-b pb-3 mb-4">
+              <h3 className="text-xl font-bold">Appointment Documents</h3>
+              <button onClick={() => setShowDocsModal(false)} className="text-gray-500 hover:text-gray-800">
+                <X size={24} />
+              </button>
+            </div>
+            {docsLoading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              </div>
+            ) : currentDocs.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                No documents found for this appointment.
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {currentDocs.map(doc => (
+                  <li key={doc.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-800">{doc.fileName}</span>
+                    <button
+                      onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <Download size={20} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

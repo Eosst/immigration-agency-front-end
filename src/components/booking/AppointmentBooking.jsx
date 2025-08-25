@@ -6,6 +6,8 @@ import { getUserTimezone, createISOWithTimezone } from '../../utils/timezone';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from './PaymentForm';
+// Import the toast library
+import toast from 'react-hot-toast';
 
 // Initialize Stripe - Replace with your publishable key
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key_here');
@@ -124,11 +126,13 @@ const AppointmentBooking = () => {
     
     const validFiles = files.filter(file => {
       if (file.size > maxSize) {
-        alert(`${file.name} dépasse la taille maximale de 10MB`);
+        // Replaced alert with toast.error
+        toast.error(`${file.name} dépasse la taille maximale de 10MB`);
         return false;
       }
       if (!allowedTypes.includes(file.type)) {
-        alert(`Type de fichier non supporté: ${file.name}`);
+        // Replaced alert with toast.error
+        toast.error(`Type de fichier non supporté: ${file.name}`);
         return false;
       }
       return true;
@@ -178,14 +182,16 @@ const AppointmentBooking = () => {
     }
   };
 
-  const handleSubmit = async () => {
+// src/components/booking/AppointmentBooking.jsx
+
+// ... other code ...
+
+const handleSubmit = async () => {
     try {
       setLoading(true);
       
-      // Create ISO string with timezone
       const isoString = createISOWithTimezone(selectedDate, selectedTime);
       
-      // IMPORTANT: Include userTimezone in the appointment data
       const appointmentData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -197,33 +203,29 @@ const AppointmentBooking = () => {
         consultationType: formData.consultationType,
         clientPresentation: formData.clientPresentation,
         currency: selectedCurrency,
-        userTimezone: userTimezone // THIS IS THE FIX - INCLUDE THE TIMEZONE
+        userTimezone: userTimezone
       };
       
-      // Debug logging
       console.log('User timezone:', userTimezone);
       console.log('Sending appointment data:', appointmentData);
 
-      // Create appointment
       const appointmentResponse = await appointmentAPI.create(appointmentData);
       const appointment = appointmentResponse.data;
       setCreatedAppointment(appointment);
 
-      // Upload documents if any
       if (formData.documents.length > 0) {
         try {
           await documentAPI.upload(appointment.id, formData.documents);
         } catch (error) {
           console.error('Error uploading documents:', error);
+          toast.error('Erreur lors du téléversement des documents. Veuillez réessayer plus tard.');
         }
       }
 
-      // Create payment intent and get client secret
       const paymentResponse = await paymentAPI.createIntent(appointment.id);
       setPaymentClientSecret(paymentResponse.data.clientSecret);
       
-      // Move to payment step
-      setCurrentStep(5); // Payment step
+      setCurrentStep(5);
       
     } catch (error) {
       console.error('Error creating appointment:', error);
@@ -231,20 +233,26 @@ const AppointmentBooking = () => {
       
       let errorMessage = 'Erreur lors de la création du rendez-vous';
       
-      if (error.response?.data?.message) {
+      // Check for validation errors and format a detailed message
+      if (error.response?.data?.validationErrors) {
+        const validationErrors = error.response.data.validationErrors;
+        if (validationErrors.appointmentDate) {
+            errorMessage = 'La date de rendez-vous doit être dans le futur.';
+        } else {
+            const errors = Object.values(validationErrors).join('; ');
+            errorMessage = `Erreurs de validation: ${errors}`;
+        }
+      } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
-      } else if (error.response?.data?.validationErrors) {
-        const errors = Object.entries(error.response.data.validationErrors)
-          .map(([field, message]) => `${field}: ${message}`)
-          .join('\n');
-        errorMessage = `Erreurs de validation:\n${errors}`;
       }
       
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+};
+
+// ... rest of the code ...
 
   const handlePaymentSuccess = async (paymentIntent) => {
     try {
@@ -253,15 +261,19 @@ const AppointmentBooking = () => {
       
       // Move to success step
       setCurrentStep(6);
+      // Replaced alert with toast.success
+      toast.success('Paiement réussi !');
     } catch (error) {
       console.error('Error confirming payment:', error);
-      alert('Paiement reçu mais erreur lors de la confirmation. Veuillez nous contacter.');
+      // Replaced alert with toast.error
+      toast.error('Paiement reçu mais erreur lors de la confirmation. Veuillez nous contacter.');
     }
   };
 
   const handlePaymentError = (error) => {
     console.error('Payment error:', error);
-    alert(`Erreur de paiement: ${error.message}`);
+    // Replaced alert with toast.error
+    toast.error(`Erreur de paiement: ${error.message}`);
   };
 
   const getAvailableTimesForDuration = (duration) => {
@@ -397,13 +409,18 @@ const AppointmentBooking = () => {
                   <div className="grid grid-cols-4 gap-3">
                     {dayAvailability.availableSlots.map(slot => {
                       const hasAvailability = slot.available30Min || slot.available60Min || slot.available90Min;
+
+                      // New logic to check if the time slot has already passed
+                      const isPastTime = selectedDate.toDateString() === new Date().toDateString() &&
+                                         new Date(selectedDate.toDateString() + ' ' + slot.startTime) < new Date();
+
                       return (
                         <button
                           key={slot.startTime}
-                          onClick={() => hasAvailability && setSelectedTime(slot.startTime)}
-                          disabled={!hasAvailability}
+                          onClick={() => hasAvailability && !isPastTime && setSelectedTime(slot.startTime)}
+                          disabled={!hasAvailability || isPastTime}
                           className={`p-3 rounded-lg transition-all ${
-                            !hasAvailability ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                            !hasAvailability || isPastTime ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
                             selectedTime === slot.startTime ? 
                             'bg-blue-600 text-white' : 
                             'bg-gray-100 hover:bg-blue-100'
@@ -767,7 +784,7 @@ const AppointmentBooking = () => {
         )}
       </div>
     </div>
-  );
+);
 };
 
 export default AppointmentBooking;

@@ -8,6 +8,7 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import AppointmentDetailsPage from './pages/AppointmentDetailsPage';
 import './styles/global.css';
 
 function App() {
@@ -51,6 +52,14 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path = "/admin/appointments/:id"
+            element = {
+              <ProtectedRoute requiredRole="ADMIN">
+                <AppointmentDetailsPage/>
+              </ProtectedRoute>
+            }
+            />
           {/* 404 Page - This catches all unmatched routes */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
