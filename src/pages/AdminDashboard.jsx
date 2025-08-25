@@ -1,7 +1,9 @@
-// src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays, FileText, Download } from 'lucide-react';
+import { 
+  Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays, 
+  FileText, Download, CheckCircle, AlertCircle, XCircle, Filter
+} from 'lucide-react';
 import { appointmentAPI, availabilityAPI, documentAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Header from '../components/common/Header';
@@ -15,7 +17,8 @@ const AdminDashboard = () => {
   const [blockedPeriods, setBlockedPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBlockModal, setShowBlockModal] = useState(false);
-  const [blockType, setBlockType] = useState('time'); // 'time', 'day', 'range'
+  const [blockType, setBlockType] = useState('time');
+  const [statusFilter, setStatusFilter] = useState('ALL'); // New state for status filter
   const [blockForm, setBlockForm] = useState({
     date: '',
     endDate: '',
@@ -29,6 +32,9 @@ const AdminDashboard = () => {
     total: 0,
     pending: 0,
     confirmed: 0,
+    cancelled: 0,
+    completed: 0,
+    noShow: 0,
     revenue: { CAD: 0, MAD: 0 }
   });
 
@@ -36,16 +42,23 @@ const AdminDashboard = () => {
   const [currentDocs, setCurrentDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
 
+  const statusOptions = [
+    { value: 'ALL', label: 'All Appointments', icon: Calendar, color: 'bg-gray-600' },
+    { value: 'PENDING', label: 'Pending', icon: Clock, color: 'bg-yellow-600' },
+    { value: 'CONFIRMED', label: 'Confirmed', icon: CheckCircle, color: 'bg-green-600' },
+    { value: 'CANCELLED', label: 'Cancelled', icon: XCircle, color: 'bg-red-600' },
+    { value: 'COMPLETED', label: 'Completed', icon: CheckCircle, color: 'bg-blue-600' },
+    { value: 'NO_SHOW', label: 'No Show', icon: AlertCircle, color: 'bg-gray-600' }
+  ];
+
   useEffect(() => {
-    // Check if user is logged in
     const token = localStorage.getItem('authToken');
     if (!token) {
       navigate('/admin/login');
       return;
     }
-
     fetchData();
-  }, [navigate, activeTab]);
+  }, [navigate, activeTab, statusFilter]);
 
   const fetchData = async () => {
     try {
@@ -67,9 +80,14 @@ const AdminDashboard = () => {
   };
 
   const fetchAppointments = async () => {
-    const response = await appointmentAPI.getUpcoming();
-    setAppointments(response.data);
-    calculateStats(response.data);
+    try {
+      const response = await appointmentAPI.getAll(statusFilter === 'ALL' ? null : statusFilter);
+      setAppointments(response.data);
+      calculateStats(response.data);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      toast.error('Failed to fetch appointments');
+    }
   };
 
   const fetchBlockedPeriods = async () => {
@@ -82,14 +100,33 @@ const AdminDashboard = () => {
       total: appointmentsList.length,
       pending: 0,
       confirmed: 0,
+      cancelled: 0,
+      completed: 0,
+      noShow: 0,
       revenue: { CAD: 0, MAD: 0 }
     };
 
     appointmentsList.forEach(apt => {
-      if (apt.status === 'PENDING') stats.pending++;
-      if (apt.status === 'CONFIRMED') {
-        stats.confirmed++;
-        stats.revenue[apt.currency] = (stats.revenue[apt.currency] || 0) + parseFloat(apt.amount);
+      switch(apt.status) {
+        case 'PENDING':
+          stats.pending++;
+          break;
+        case 'CONFIRMED':
+          stats.confirmed++;
+          stats.revenue[apt.currency] = (stats.revenue[apt.currency] || 0) + parseFloat(apt.amount);
+          break;
+        case 'CANCELLED':
+          stats.cancelled++;
+          break;
+        case 'COMPLETED':
+          stats.completed++;
+          stats.revenue[apt.currency] = (stats.revenue[apt.currency] || 0) + parseFloat(apt.amount);
+          break;
+        case 'NO_SHOW':
+          stats.noShow++;
+          break;
+        default:
+          break;
       }
     });
 
@@ -219,7 +256,6 @@ const AdminDashboard = () => {
     try {
       return formatInTimezone(new Date(dateString), 'MMM dd, yyyy HH:mm');
     } catch (error) {
-      // Fallback to basic formatting if timezone utils fail
       return new Date(dateString).toLocaleString('fr-CA', {
         year: 'numeric',
         month: 'long',
@@ -232,11 +268,31 @@ const AdminDashboard = () => {
 
   const formatTime = (time) => {
     if (!time) return '';
-    return time.substring(0, 5); // Convert HH:mm:ss to HH:mm
+    return time.substring(0, 5);
   };
 
   const isFullDayBlock = (period) => {
     return period.startTime === '00:00:00' && period.endTime === '23:59:00';
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      'PENDING': { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+      'CONFIRMED': { color: 'bg-green-100 text-green-800', icon: CheckCircle },
+      'CANCELLED': { color: 'bg-red-100 text-red-800', icon: XCircle },
+      'COMPLETED': { color: 'bg-blue-100 text-blue-800', icon: CheckCircle },
+      'NO_SHOW': { color: 'bg-gray-100 text-gray-800', icon: AlertCircle }
+    };
+    
+    const config = statusConfig[status] || { color: 'bg-gray-100 text-gray-800', icon: AlertCircle };
+    const Icon = config.icon;
+    
+    return (
+      <span className={`px-2 inline-flex items-center text-xs leading-5 font-semibold rounded-full ${config.color}`}>
+        <Icon size={12} className="mr-1" />
+        {status}
+      </span>
+    );
   };
 
   // Group blocked periods by date range
@@ -253,17 +309,13 @@ const AdminDashboard = () => {
     });
 
     dateMap.forEach((periods, key) => {
-      // Sort periods by date
       periods.sort((a, b) => new Date(a.date) - new Date(b.date));
       
-      // Check if it's a consecutive date range
       let rangeStart = 0;
       for (let i = 1; i <= periods.length; i++) {
         if (i === periods.length || 
             new Date(periods[i].date) - new Date(periods[i-1].date) !== 86400000) {
-          // End of range found
           if (i - rangeStart > 1) {
-            // It's a range
             grouped.push({
               type: 'range',
               startDate: periods[rangeStart].date,
@@ -272,7 +324,6 @@ const AdminDashboard = () => {
               ...periods[rangeStart]
             });
           } else {
-            // Single day
             grouped.push({
               type: 'single',
               ...periods[rangeStart]
@@ -310,60 +361,78 @@ const AdminDashboard = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Stats Cards */}
+        {/* Timezone Info */}
         <div className="mb-4 p-3 bg-blue-50 rounded-lg">
           <p className="text-sm text-blue-800">
             All times displayed in: <strong>{userTimezone}</strong>
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-md">
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-lg shadow-md">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Total Appointments</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-gray-600 text-xs">Total</p>
+                <p className="text-xl font-bold">{stats.total}</p>
               </div>
-              <Calendar className="text-blue-500" size={32} />
+              <Calendar className="text-blue-500" size={24} />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="bg-white p-4 rounded-lg shadow-md">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                <p className="text-gray-600 text-xs">Pending</p>
+                <p className="text-xl font-bold text-yellow-600">{stats.pending}</p>
               </div>
-              <Clock className="text-yellow-500" size={32} />
+              <Clock className="text-yellow-500" size={24} />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="bg-white p-4 rounded-lg shadow-md">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Confirmed</p>
-                <p className="text-2xl font-bold text-green-600">{stats.confirmed}</p>
+                <p className="text-gray-600 text-xs">Confirmed</p>
+                <p className="text-xl font-bold text-green-600">{stats.confirmed}</p>
               </div>
-              <Users className="text-green-500" size={32} />
+              <CheckCircle className="text-green-500" size={24} />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="bg-white p-4 rounded-lg shadow-md">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Revenue</p>
-                <p className="text-lg font-bold">
-                  ${stats.revenue.CAD} CAD
-                </p>
-                <p className="text-sm font-semibold">
-                  {stats.revenue.MAD} MAD
-                </p>
+                <p className="text-gray-600 text-xs">Cancelled</p>
+                <p className="text-xl font-bold text-red-600">{stats.cancelled}</p>
               </div>
-              <DollarSign className="text-green-500" size={32} />
+              <XCircle className="text-red-500" size={24} />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-xs">Completed</p>
+                <p className="text-xl font-bold text-blue-600">{stats.completed}</p>
+              </div>
+              <CheckCircle className="text-blue-500" size={24} />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-xs">Revenue</p>
+                <p className="text-sm font-bold">${stats.revenue.CAD} CAD</p>
+                <p className="text-xs font-semibold">{stats.revenue.MAD} MAD</p>
+              </div>
+              <DollarSign className="text-green-500" size={24} />
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Main Tabs */}
         <div className="flex space-x-4 mb-6">
           <button
             onClick={() => setActiveTab('appointments')}
@@ -391,8 +460,65 @@ const AdminDashboard = () => {
         <div className="bg-white rounded-lg shadow-md">
           {activeTab === 'appointments' ? (
             <>
+              {/* Status Filter Buttons */}
               <div className="p-6 border-b">
-                <h2 className="text-xl font-bold">Upcoming Appointments</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">Appointments</h2>
+                  <div className="flex items-center gap-2">
+                    <Filter className="text-gray-500" size={20} />
+                    <span className="text-sm text-gray-600">Filter by status:</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {statusOptions.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => setStatusFilter(option.value)}
+                        className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
+                          statusFilter === option.value 
+                            ? `${option.color} text-white shadow-lg` 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Icon size={16} className="mr-2" />
+                        {option.label}
+                        {option.value === 'ALL' && (
+                          <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                            {stats.total}
+                          </span>
+                        )}
+                        {option.value === 'PENDING' && stats.pending > 0 && (
+                          <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                            {stats.pending}
+                          </span>
+                        )}
+                        {option.value === 'CONFIRMED' && stats.confirmed > 0 && (
+                          <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                            {stats.confirmed}
+                          </span>
+                        )}
+                        {option.value === 'CANCELLED' && stats.cancelled > 0 && (
+                          <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                            {stats.cancelled}
+                          </span>
+                        )}
+                        {option.value === 'COMPLETED' && stats.completed > 0 && (
+                          <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                            {stats.completed}
+                          </span>
+                        )}
+                        {option.value === 'NO_SHOW' && stats.noShow > 0 && (
+                          <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                            {stats.noShow}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               
               {loading ? (
@@ -401,7 +527,11 @@ const AdminDashboard = () => {
                 </div>
               ) : appointments.length === 0 ? (
                 <div className="p-12 text-center text-gray-500">
-                  No appointments found
+                  <AlertCircle size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg">No appointments found</p>
+                  {statusFilter !== 'ALL' && (
+                    <p className="text-sm mt-2">Try changing the status filter</p>
+                  )}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -433,8 +563,15 @@ const AdminDashboard = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {appointments.map((appointment) => (
-                        <tr key={appointment.id} className="hover:bg-gray-50"
-                        onClick={() => navigate(`/admin/appointments/${appointment.id}`)}>
+                        <tr 
+                          key={appointment.id} 
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={(e) => {
+                            if (!e.target.closest('button')) {
+                              navigate(`/admin/appointments/${appointment.id}`);
+                            }
+                          }}
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
                               <div className="text-sm font-medium text-gray-900">
@@ -454,34 +591,34 @@ const AdminDashboard = () => {
                             {appointment.duration} min
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              appointment.status === 'CONFIRMED' 
-                                ? 'bg-green-100 text-green-800' 
-                                : appointment.status === 'PENDING'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {appointment.status}
-                            </span>
+                            {getStatusBadge(appointment.status)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {appointment.amount} {appointment.currency}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                             <button
-                              onClick={() => handleViewDocuments(appointment.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewDocuments(appointment.id);
+                              }}
                               className="text-blue-600 hover:text-blue-900"
                               title="View Documents"
                             >
                               <FileText size={18} />
                             </button>
-                            <button
-                              onClick={() => handleCancelAppointment(appointment.id)}
-                              className="text-red-600 hover:text-red-900"
-                              title="Cancel Appointment"
-                            >
-                              <Ban size={18} />
-                            </button>
+                            {appointment.status !== 'CANCELLED' && appointment.status !== 'COMPLETED' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelAppointment(appointment.id);
+                                }}
+                                className="text-red-600 hover:text-red-900"
+                                title="Cancel Appointment"
+                              >
+                                <Ban size={18} />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}

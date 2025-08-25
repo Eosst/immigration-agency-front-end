@@ -46,6 +46,13 @@ export const appointmentAPI = {
   
   // Get upcoming appointments
   getUpcoming: () => api.get('/appointments/upcoming'),
+
+  getAll: (status = null) => {
+    if (status) {
+      return api.get(`/appointments?status=${status}`);
+    }
+    return api.get('/appointments');
+  },
   
   // Confirm payment
   confirmPayment: (id, paymentIntentId) => 
