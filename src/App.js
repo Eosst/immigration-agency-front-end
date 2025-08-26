@@ -44,7 +44,16 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/booking" element={<BookingPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          
           <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
+                    <Route 
             path="/admin/dashboard" 
             element={
               <ProtectedRoute requiredRole="ADMIN">
