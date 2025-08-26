@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, Upload, ChevronLeft, ChevronRight, Check, AlertCircle } from 'lucide-react';
 import { appointmentAPI, availabilityAPI, paymentAPI, documentAPI } from '../../services/api';
 import { CONSULTATION_TYPES, PRICES } from '../../utils/constants';
@@ -13,6 +14,7 @@ import toast from 'react-hot-toast';
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key_here');
 
 const AppointmentBooking = () => {
+  const location = useLocation();
   const userTimezone = getUserTimezone();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -37,6 +39,19 @@ const AppointmentBooking = () => {
   });
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Extract consultation type from URL query parameters
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const consultationType = searchParams.get('type');
+    
+    if (consultationType && CONSULTATION_TYPES.includes(consultationType)) {
+      setFormData(prev => ({
+        ...prev,
+        consultationType: consultationType
+      }));
+    }
+  }, [location.search]);
 
   // Fetch month availability when month changes
   useEffect(() => {
@@ -305,6 +320,18 @@ const handleSubmit = async () => {
           <br />
           <span className="text-xs text-muted">Les heures seront affichées dans votre fuseau horaire local</span>
         </div>
+
+        {/* Pre-selected Service Notice */}
+        {formData.consultationType && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center">
+              <Check className="text-blue-600 mr-2" size={20} />
+              <span className="text-blue-800 font-medium">
+                Service sélectionné: <strong>{formData.consultationType}</strong>
+              </span>
+            </div>
+          </div>
+        )}
         
         {/* Progress Bar */}
         <div className="mb-8">

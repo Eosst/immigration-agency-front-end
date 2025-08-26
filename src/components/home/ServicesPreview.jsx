@@ -1,9 +1,12 @@
 // src/components/home/ServicesPreview.jsx
 import React from 'react';
-import { Briefcase, GraduationCap, Home, Heart, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Briefcase, GraduationCap, Home, Heart, FileText, ArrowRight } from 'lucide-react';
 import { SERVICES } from '../../utils/constants';
 
 const ServicesPreview = () => {
+  const navigate = useNavigate();
+
   // Map icon names to actual icon components
   const iconMap = {
     'Briefcase': Briefcase,
@@ -11,6 +14,12 @@ const ServicesPreview = () => {
     'Home': Home,
     'Heart': Heart,
     'FileText': FileText
+  };
+
+  const handleServiceClick = (service) => {
+    // Navigate to booking page with consultation type as query parameter
+    const consultationType = encodeURIComponent(service.consultationType);
+    navigate(`/booking?type=${consultationType}`);
   };
 
   return (
@@ -34,7 +43,8 @@ const ServicesPreview = () => {
             return (
               <div
                 key={service.id}
-                className="group bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 relative overflow-hidden hover:-translate-y-2"
+                onClick={() => handleServiceClick(service)}
+                className="group bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 relative overflow-hidden hover:-translate-y-2 cursor-pointer"
               >
                 {/* Gradient bar at top */}
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 to-amber-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
@@ -50,14 +60,22 @@ const ServicesPreview = () => {
                 <h3 className="text-xl font-bold text-gray-900 mb-3">
                   {service.title}
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-gray-600 leading-relaxed mb-4">
                   {service.description}
                 </p>
 
-                {/* Hidden arrow that appears on hover */}
-                <div className="mt-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <span className="text-sm font-semibold">En savoir plus →</span>
+                {/* Call to action that appears on hover */}
+                <div className="flex items-center justify-between">
+                  <div className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <span className="text-sm font-semibold flex items-center">
+                      Réserver maintenant
+                      <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform duration-300" size={16} />
+                    </span>
+                  </div>
                 </div>
+
+                {/* Hover overlay effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-yellow-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
             );
           })}
@@ -65,12 +83,12 @@ const ServicesPreview = () => {
 
         {/* CTA */}
         <div className="text-center mt-12">
-          <a
-            href="/booking"
+          <button
+            onClick={() => navigate('/booking')}
             className="inline-flex items-center bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-3 rounded-full font-bold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
           >
             Découvrir tous nos services
-          </a>
+          </button>
         </div>
       </div>
     </section>

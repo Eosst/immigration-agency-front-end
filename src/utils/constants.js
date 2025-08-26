@@ -51,37 +51,43 @@ export const CONSULTATION_TYPES = [
       id: 'work-visa',
       icon: 'Briefcase',
       title: 'Visa de Travail',
-      description: 'Assistance complète pour l\'obtention de votre visa de travail temporaire ou permanent au Canada.'
+      description: 'Assistance complète pour l\'obtention de votre visa de travail temporaire ou permanent au Canada.',
+      consultationType: 'Visa temporaire'
     },
     {
       id: 'student-visa',
       icon: 'GraduationCap',
       title: 'Visa Étudiant',
-      description: 'Guidance pour les étudiants souhaitant poursuivre leurs études dans les meilleures universités canadiennes.'
+      description: 'Guidance pour les étudiants souhaitant poursuivre leurs études dans les meilleures universités canadiennes.',
+      consultationType: 'Permis d\'études'
     },
     {
       id: 'permanent-residence',
       icon: 'Home',
       title: 'Résidence Permanente',
-      description: 'Accompagnement pour votre demande de résidence permanente via les programmes d\'immigration.'
+      description: 'Accompagnement pour votre demande de résidence permanente via les programmes d\'immigration.',
+      consultationType: 'Travailleurs qualifiés'
     },
     {
       id: 'family-reunification',
       icon: 'Heart',
       title: 'Regroupement Familial',
-      description: 'Aide pour faire venir votre famille au Canada grâce aux programmes de parrainage.'
+      description: 'Aide pour faire venir votre famille au Canada grâce aux programmes de parrainage.',
+      consultationType: 'Regroupement familial'
     },
     {
       id: 'entrepreneur-program',
       icon: 'Briefcase',
       title: 'Programme des Entrepreneurs',
-      description: 'Conseils pour les investisseurs et entrepreneurs souhaitant s\'établir au Québec.'
+      description: 'Conseils pour les investisseurs et entrepreneurs souhaitant s\'établir au Québec.',
+      consultationType: 'Gens d\'affaires'
     },
     {
       id: 'file-review',
       icon: 'FileText',
       title: 'Révision de Dossiers',
-      description: 'Analyse et amélioration de vos dossiers d\'immigration pour maximiser vos chances de succès.'
+      description: 'Analyse et amélioration de vos dossiers d\'immigration pour maximiser vos chances de succès.',
+      consultationType: 'Révision de refus'
     }
   ];
   
