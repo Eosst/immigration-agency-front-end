@@ -27,6 +27,9 @@ const AppointmentBooking = () => {
   const [loading, setLoading] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
   const [paymentClientSecret, setPaymentClientSecret] = useState(null);
+
+
+
   
   const [formData, setFormData] = useState({
     consultationType: '',
@@ -40,6 +43,9 @@ const AppointmentBooking = () => {
   });
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+ 
+
 
   // Extract consultation type from URL query parameters
   useEffect(() => {
@@ -63,14 +69,10 @@ const AppointmentBooking = () => {
     console.error('Error fetching month availability:', error);
   }
 }, [currentMonth]);
-useEffect(() => {
-  fetchMonthAvailability();
-}, [currentMonth, fetchMonthAvailability]);
+
 
   // Fetch month availability when month changes
-  useEffect(() => {
-    fetchMonthAvailability();
-  }, [currentMonth, fetchMonthAvailability]);
+
 
   const fetchDayAvailability = useCallback(async () => {
   try {
@@ -85,18 +87,17 @@ useEffect(() => {
   }
 }, [selectedDate]); // Add selectedDate as a dependency
 
+
+useEffect(() => {
+  fetchMonthAvailability();
+}, [fetchMonthAvailability]);
+
 useEffect(() => {
   if (selectedDate) {
     fetchDayAvailability();
   }
-}, [selectedDate, fetchDayAvailability]);
+}, [fetchDayAvailability, selectedDate]);
 
-  // Fetch day availability when date is selected
-  useEffect(() => {
-    if (selectedDate) {
-      fetchDayAvailability();
-    }
-  }, [fetchDayAvailability, selectedDate]);
 
 
 

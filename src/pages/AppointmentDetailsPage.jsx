@@ -32,6 +32,21 @@ const AppointmentDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const userTimezone = getUserTimezone();
+   
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    consultationType: '',
+    duration: 30,
+    appointmentDate: '',
+    appointmentTime: '',
+    status: '',
+    amount: '',
+    currency: 'CAD',
+    notes: ''
+  });
   
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -117,21 +132,7 @@ const AppointmentDetailsPage = () => {
     }
 }, [id]);
   
-  
-  const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    consultationType: '',
-    duration: 30,
-    appointmentDate: '',
-    appointmentTime: '',
-    status: '',
-    amount: '',
-    currency: 'CAD',
-    notes: ''
-  });
+ 
 
   useEffect(() => {
     if (id) {

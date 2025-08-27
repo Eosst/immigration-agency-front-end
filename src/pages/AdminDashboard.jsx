@@ -78,14 +78,7 @@ const AdminDashboard = () => {
     }
 }, [activeTab, fetchAppointments, handleLogout]); // Add dependencies
 
-useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
-    fetchData();
-}, [navigate, fetchData]);
+
 
   const statusOptions = [
     { value: 'ALL', label: 'All Appointments', icon: Calendar, color: 'bg-gray-600' },
@@ -96,14 +89,14 @@ useEffect(() => {
     { value: 'NO_SHOW', label: 'No Show', icon: AlertCircle, color: 'bg-gray-600' }
   ];
 
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
-    fetchData();
-  }, [navigate, activeTab, statusFilter, fetchData]);
+useEffect(() => {
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    navigate('/admin/login');
+    return;
+  }
+  fetchData();
+}, [fetchData, navigate]);
 
 
 
