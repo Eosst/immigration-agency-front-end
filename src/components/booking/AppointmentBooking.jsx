@@ -23,14 +23,12 @@ const AppointmentBooking = () => {
   const [selectedDuration, setSelectedDuration] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState('CAD');
   const [monthAvailability, setMonthAvailability] = useState({});
+  const [monthAvailabilityLoading, setMonthAvailabilityLoading] = useState(true); // NEW: Loading state
   const [dayAvailability, setDayAvailability] = useState(null);
   const [loading, setLoading] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
   const [paymentClientSecret, setPaymentClientSecret] = useState(null);
 
-
-
-  
   const [formData, setFormData] = useState({
     consultationType: '',
     firstName: '',
@@ -44,9 +42,6 @@ const AppointmentBooking = () => {
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
- 
-
-
   // Extract consultation type from URL query parameters
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -59,51 +54,45 @@ const AppointmentBooking = () => {
       }));
     }
   }, [location.search]);
+
   const fetchMonthAvailability = useCallback(async () => {
-  try {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth() + 1;
-    const response = await availabilityAPI.getMonthAvailability(year, month);
-    setMonthAvailability(response.data.dayAvailability);
-  } catch (error) {
-    console.error('Error fetching month availability:', error);
-  }
-}, [currentMonth]);
-
-
-  // Fetch month availability when month changes
-
+    try {
+      setMonthAvailabilityLoading(true); // NEW: Set loading to true
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      const response = await availabilityAPI.getMonthAvailability(year, month);
+      setMonthAvailability(response.data.dayAvailability);
+    } catch (error) {
+      console.error('Error fetching month availability:', error);
+      // Set empty object as fallback so calendar can still render
+      setMonthAvailability({});
+    } finally {
+      setMonthAvailabilityLoading(false); // NEW: Set loading to false
+    }
+  }, [currentMonth]);
 
   const fetchDayAvailability = useCallback(async () => {
-  try {
-    setLoading(true);
-    const dateStr = formatDateForAPI(selectedDate);
-    const response = await availabilityAPI.getDayAvailability(dateStr);
-    setDayAvailability(response.data);
-  } catch (error) {
-    console.error('Error fetching day availability:', error);
-  } finally {
-    setLoading(false);
-  }
-}, [selectedDate]); // Add selectedDate as a dependency
+    try {
+      setLoading(true);
+      const dateStr = formatDateForAPI(selectedDate);
+      const response = await availabilityAPI.getDayAvailability(dateStr);
+      setDayAvailability(response.data);
+    } catch (error) {
+      console.error('Error fetching day availability:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
 
+  useEffect(() => {
+    fetchMonthAvailability();
+  }, [fetchMonthAvailability]);
 
-useEffect(() => {
-  fetchMonthAvailability();
-}, [fetchMonthAvailability]);
-
-useEffect(() => {
-  if (selectedDate) {
-    fetchDayAvailability();
-  }
-}, [fetchDayAvailability, selectedDate]);
-
-
-
-
-
-
-
+  useEffect(() => {
+    if (selectedDate) {
+      fetchDayAvailability();
+    }
+  }, [fetchDayAvailability, selectedDate]);
 
   const formatDateForAPI = (date) => {
     const year = date.getFullYear();
@@ -157,12 +146,10 @@ useEffect(() => {
     
     const validFiles = files.filter(file => {
       if (file.size > maxSize) {
-        // Replaced alert with toast.error
         toast.error(`${file.name} dépasse la taille maximale de 10MB`);
         return false;
       }
       if (!allowedTypes.includes(file.type)) {
-        // Replaced alert with toast.error
         toast.error(`Type de fichier non supporté: ${file.name}`);
         return false;
       }
@@ -213,11 +200,7 @@ useEffect(() => {
     }
   };
 
-// src/components/booking/AppointmentBooking.jsx
-
-// ... other code ...
-
-const handleSubmit = async () => {
+  const handleSubmit = async () => {
     try {
       setLoading(true);
       
@@ -264,7 +247,6 @@ const handleSubmit = async () => {
       
       let errorMessage = 'Erreur lors de la création du rendez-vous';
       
-      // Check for validation errors and format a detailed message
       if (error.response?.data?.validationErrors) {
         const validationErrors = error.response.data.validationErrors;
         if (validationErrors.appointmentDate) {
@@ -281,29 +263,21 @@ const handleSubmit = async () => {
     } finally {
       setLoading(false);
     }
-};
-
-// ... rest of the code ...
+  };
 
   const handlePaymentSuccess = async (paymentIntent) => {
     try {
-      // Confirm payment on backend
       await appointmentAPI.confirmPayment(createdAppointment.id, paymentIntent.id);
-      
-      // Move to success step
       setCurrentStep(6);
-      // Replaced alert with toast.success
       toast.success('Paiement réussi !');
     } catch (error) {
       console.error('Error confirming payment:', error);
-      // Replaced alert with toast.error
       toast.error('Paiement reçu mais erreur lors de la confirmation. Veuillez nous contacter.');
     }
   };
 
   const handlePaymentError = (error) => {
     console.error('Payment error:', error);
-    // Replaced alert with toast.error
     toast.error(`Erreur de paiement: ${error.message}`);
   };
 
@@ -389,6 +363,7 @@ const handleSubmit = async () => {
               <button
                 onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
                 className="p-2 hover:bg-gray-100 rounded"
+                disabled={monthAvailabilityLoading}
               >
                 <ChevronLeft />
               </button>
@@ -398,6 +373,7 @@ const handleSubmit = async () => {
               <button
                 onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
                 className="p-2 hover:bg-gray-100 rounded"
+                disabled={monthAvailabilityLoading}
               >
                 <ChevronRight />
               </button>
@@ -412,24 +388,33 @@ const handleSubmit = async () => {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-2">
-                {generateCalendarDays().map((date, index) => (
-                  <button
-                    key={index}
-                    onClick={() => date && isDateAvailable(date) && setSelectedDate(date)}
-                    disabled={!date || !isDateAvailable(date)}
-                    className={`p-3 rounded-lg text-sm transition-all ${
-                      !date ? 'invisible' : 
-                      !isDateAvailable(date) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                      selectedDate?.toDateString() === date.toDateString() ? 
-                      'bg-blue-600 text-white' : 
-                      'bg-gray-50 hover:bg-blue-100 cursor-pointer'
-                    }`}
-                  >
-                    {date?.getDate()}
-                  </button>
-                ))}
-              </div>
+              
+              {/* NEW: Show loading state while fetching month availability */}
+              {monthAvailabilityLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-600 mt-2">Chargement des disponibilités...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-7 gap-2">
+                  {generateCalendarDays().map((date, index) => (
+                    <button
+                      key={index}
+                      onClick={() => date && isDateAvailable(date) && setSelectedDate(date)}
+                      disabled={!date || !isDateAvailable(date)}
+                      className={`p-3 rounded-lg text-sm transition-all ${
+                        !date ? 'invisible' : 
+                        !isDateAvailable(date) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                        selectedDate?.toDateString() === date.toDateString() ? 
+                        'bg-blue-600 text-white' : 
+                        'bg-gray-50 hover:bg-blue-100 cursor-pointer'
+                      }`}
+                    >
+                      {date?.getDate()}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Time Slots */}
@@ -453,7 +438,6 @@ const handleSubmit = async () => {
                     {dayAvailability.availableSlots.map(slot => {
                       const hasAvailability = slot.available30Min || slot.available60Min || slot.available90Min;
 
-                      // New logic to check if the time slot has already passed
                       const isPastTime = selectedDate.toDateString() === new Date().toDateString() &&
                                          new Date(selectedDate.toDateString() + ' ' + slot.startTime) < new Date();
 
@@ -827,7 +811,7 @@ const handleSubmit = async () => {
         )}
       </div>
     </div>
-);
+  );
 };
 
 export default AppointmentBooking;
