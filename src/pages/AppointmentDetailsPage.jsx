@@ -188,23 +188,34 @@ const fetchAvailableTimes = async (date) => {
       setSaving(false);
     }
   };
-  const handleDownloadDocument = async (documentId, fileName) => {
-    try {
-      const response = await documentAPI.downloadDocument(documentId);
-      const blob = new Blob([response.data], { type: response.headers['content-type'] });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      toast.error('Failed to download document');
-      console.error('Error downloading document:', error);
-    }
-  };
+const handleDownloadDocument = (doc) => {
+  if (!doc.url) {
+    toast.error('Document URL is not available.');
+    console.error('Document object is missing the URL:', doc);
+    return;
+  }
+
+  // List of common image file extensions
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+  const fileExtension = doc.fileName.split('.').pop().toLowerCase();
+
+  const link = document.createElement('a');
+  link.href = doc.url;
+
+  // Check if the file is an image
+  if (imageExtensions.includes(fileExtension)) {
+    // For images, open in a new tab for viewing
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  } else {
+    // For other files (PDF, DOCX), force a download
+    link.setAttribute('download', doc.fileName);
+  }
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
   const handleDeleteDocument = async (documentId) => {
     if (window.confirm('Are you sure you want to delete this document?')) {
@@ -554,7 +565,7 @@ const fetchAvailableTimes = async (date) => {
                         </div>
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => handleDownloadDocument(doc.id, doc.fileName)}
+                            onClick={() => handleDownloadDocument(doc)}
                             className="text-blue-600 hover:text-blue-800 p-2"
                             title="Download"
                           >
