@@ -1,5 +1,5 @@
 // src/pages/AppointmentDetailsPage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect , useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Calendar, 
@@ -14,7 +14,7 @@ import {
   Edit2,
   X,
   Download,
-  Upload,
+  
   Trash2,
   DollarSign,
   CheckCircle,
@@ -39,31 +39,36 @@ const AppointmentDetailsPage = () => {
   const [editing, setEditing] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [availableTimes, setAvailableTimes] = useState([]);
-  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
-  
-  const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    consultationType: '',
-    duration: 30,
-    appointmentDate: '',
-    appointmentTime: '',
-    status: '',
-    amount: '',
-    currency: 'CAD',
-    notes: ''
-  });
 
-  useEffect(() => {
-    if (id) {
-      fetchAppointmentDetails();
-      fetchDocuments();
+  const fetchAvailableTimes = useCallback(async (date) => {
+    try {
+      const response = await availabilityAPI.getDayAvailability(date, userTimezone);
+      const availableSlots = response.data.availableSlots || [];
+      
+      // FIX: Filter out past time slots for today's date
+      const now = new Date();
+      const isToday = new Date(date).toDateString() === now.toDateString();
+
+      const futureTimes = availableSlots
+        .map(slot => slot.startTime.substring(0, 5))
+        .filter(time => {
+          if (!isToday) {
+            return true; // Keep all times for future dates
+          }
+          const [hours, minutes] = time.split(':');
+          const slotTime = new Date(date);
+          slotTime.setHours(hours, minutes, 0, 0);
+          return slotTime > now; // Keep only future times
+        });
+
+      setAvailableTimes(futureTimes);
+    } catch (error) {
+      console.error('Error fetching available times:', error);
+      setAvailableTimes([]);
     }
-  }, [id]);
+  }, [userTimezone]);
 
-   const fetchAppointmentDetails = async () => {
+  const fetchAppointmentDetails = useCallback(async () => {
     try {
       setLoading(true);
       const response = await appointmentAPI.getById(id);
@@ -102,50 +107,52 @@ const AppointmentDetailsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
-  const fetchDocuments = async () => {
+  }, [fetchAvailableTimes, id, navigate]);
+  const fetchDocuments = useCallback(async () => {
     try {
       const response = await documentAPI.getAppointmentDocuments(id);
       setDocuments(response.data);
     } catch (error) {
       console.error('Error fetching documents:', error);
     }
-  };
+}, [id]);
+  
+  
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    consultationType: '',
+    duration: 30,
+    appointmentDate: '',
+    appointmentTime: '',
+    status: '',
+    amount: '',
+    currency: 'CAD',
+    notes: ''
+  });
 
-const fetchAvailableTimes = async (date) => {
-    try {
-      const response = await availabilityAPI.getDayAvailability(date, userTimezone);
-      const availableSlots = response.data.availableSlots || [];
-      
-      // FIX: Filter out past time slots for today's date
-      const now = new Date();
-      const isToday = new Date(date).toDateString() === now.toDateString();
-
-      const futureTimes = availableSlots
-        .map(slot => slot.startTime.substring(0, 5))
-        .filter(time => {
-          if (!isToday) {
-            return true; // Keep all times for future dates
-          }
-          const [hours, minutes] = time.split(':');
-          const slotTime = new Date(date);
-          slotTime.setHours(hours, minutes, 0, 0);
-          return slotTime > now; // Keep only future times
-        });
-
-      setAvailableTimes(futureTimes);
-    } catch (error) {
-      console.error('Error fetching available times:', error);
-      setAvailableTimes([]);
+  useEffect(() => {
+    if (id) {
+      fetchAppointmentDetails();
+      fetchDocuments();
     }
-  };
+  }, [fetchAppointmentDetails, fetchDocuments, id]);
 
-  const handleDateChange = async (newDate) => {
-    setEditForm({ ...editForm, appointmentDate: newDate, appointmentTime: '' });
+
+
+
+
+
+
+
+const handleDateChange = useCallback(async (newDate) => {
+    setEditForm(prev => ({ ...prev, appointmentDate: newDate, appointmentTime: '' }));
     if (newDate) {
       await fetchAvailableTimes(newDate);
     }
-  };
+}, [fetchAvailableTimes]); 
 
   const handleSave = async () => {
     try {

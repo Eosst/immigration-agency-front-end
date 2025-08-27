@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect , useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, Users, LogOut, Clock, DollarSign, Ban, Plus, X, CalendarDays, 
+  Calendar, LogOut, Clock, DollarSign, Ban,  X, CalendarDays, 
   FileText, Download, CheckCircle, AlertCircle, XCircle, Filter
 } from 'lucide-react';
 import { appointmentAPI, availabilityAPI, documentAPI } from '../services/api';
@@ -42,6 +42,51 @@ const AdminDashboard = () => {
   const [currentDocs, setCurrentDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
 
+  const fetchAppointments = useCallback(async () => {
+  try {
+    const response = await appointmentAPI.getAll(statusFilter === 'ALL' ? null : statusFilter);
+    setAppointments(response.data);
+    calculateStats(response.data);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    toast.error('Failed to fetch appointments');
+  }
+}, [statusFilter]); // Add dependency
+ const handleLogout = useCallback(() => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('username');
+    localStorage.removeItem('role');
+    navigate('/admin/login');
+}, [navigate]);
+  
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      if (activeTab === 'appointments') {
+        await fetchAppointments();
+      } else if (activeTab === 'availability') {
+        await fetchBlockedPeriods();
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      if (error.response?.status === 401) {
+        handleLogout();
+      }
+    } finally {
+      setLoading(false);
+    }
+}, [activeTab, fetchAppointments, handleLogout]); // Add dependencies
+
+useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      navigate('/admin/login');
+      return;
+    }
+    fetchData();
+}, [navigate, fetchData]);
+
   const statusOptions = [
     { value: 'ALL', label: 'All Appointments', icon: Calendar, color: 'bg-gray-600' },
     { value: 'PENDING', label: 'Pending', icon: Clock, color: 'bg-yellow-600' },
@@ -58,37 +103,11 @@ const AdminDashboard = () => {
       return;
     }
     fetchData();
-  }, [navigate, activeTab, statusFilter]);
+  }, [navigate, activeTab, statusFilter, fetchData]);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      if (activeTab === 'appointments') {
-        await fetchAppointments();
-      } else if (activeTab === 'availability') {
-        await fetchBlockedPeriods();
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      if (error.response?.status === 401) {
-        handleLogout();
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchAppointments = async () => {
-    try {
-      const response = await appointmentAPI.getAll(statusFilter === 'ALL' ? null : statusFilter);
-      setAppointments(response.data);
-      calculateStats(response.data);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      toast.error('Failed to fetch appointments');
-    }
-  };
+
+
 
   const fetchBlockedPeriods = async () => {
     const response = await availabilityAPI.getBlockedPeriods();
@@ -133,12 +152,7 @@ const AdminDashboard = () => {
     setStats(stats);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('username');
-    localStorage.removeItem('role');
-    navigate('/admin/login');
-  };
+ 
 
   const resetBlockForm = () => {
     setBlockForm({

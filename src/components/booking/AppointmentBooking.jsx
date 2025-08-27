@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect , useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, Upload, ChevronLeft, ChevronRight, Check, AlertCircle } from 'lucide-react';
 import { appointmentAPI, availabilityAPI, paymentAPI, documentAPI } from '../../services/api';
@@ -9,6 +9,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from './PaymentForm';
 // Import the toast library
 import toast from 'react-hot-toast';
+
 
 // Initialize Stripe - Replace with your publishable key
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key_here');
@@ -52,42 +53,56 @@ const AppointmentBooking = () => {
       }));
     }
   }, [location.search]);
+  const fetchMonthAvailability = useCallback(async () => {
+  try {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const response = await availabilityAPI.getMonthAvailability(year, month);
+    setMonthAvailability(response.data.dayAvailability);
+  } catch (error) {
+    console.error('Error fetching month availability:', error);
+  }
+}, [currentMonth]);
+useEffect(() => {
+  fetchMonthAvailability();
+}, [currentMonth, fetchMonthAvailability]);
 
   // Fetch month availability when month changes
   useEffect(() => {
     fetchMonthAvailability();
-  }, [currentMonth]);
+  }, [currentMonth, fetchMonthAvailability]);
+
+  const fetchDayAvailability = useCallback(async () => {
+  try {
+    setLoading(true);
+    const dateStr = formatDateForAPI(selectedDate);
+    const response = await availabilityAPI.getDayAvailability(dateStr);
+    setDayAvailability(response.data);
+  } catch (error) {
+    console.error('Error fetching day availability:', error);
+  } finally {
+    setLoading(false);
+  }
+}, [selectedDate]); // Add selectedDate as a dependency
+
+useEffect(() => {
+  if (selectedDate) {
+    fetchDayAvailability();
+  }
+}, [selectedDate, fetchDayAvailability]);
 
   // Fetch day availability when date is selected
   useEffect(() => {
     if (selectedDate) {
       fetchDayAvailability();
     }
-  }, [selectedDate]);
+  }, [fetchDayAvailability, selectedDate]);
 
-  const fetchMonthAvailability = async () => {
-    try {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth() + 1;
-      const response = await availabilityAPI.getMonthAvailability(year, month);
-      setMonthAvailability(response.data.dayAvailability);
-    } catch (error) {
-      console.error('Error fetching month availability:', error);
-    }
-  };
 
-  const fetchDayAvailability = async () => {
-    try {
-      setLoading(true);
-      const dateStr = formatDateForAPI(selectedDate);
-      const response = await availabilityAPI.getDayAvailability(dateStr);
-      setDayAvailability(response.data);
-    } catch (error) {
-      console.error('Error fetching day availability:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+
+
+
 
   const formatDateForAPI = (date) => {
     const year = date.getFullYear();

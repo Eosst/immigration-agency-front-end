@@ -1,6 +1,6 @@
 // src/components/home/ExpertProfile.jsx
 import React from 'react';
-import { UserCircle, Award, Clock, CheckCircle, Calendar } from 'lucide-react';
+import { UserCircle,  CheckCircle, Calendar } from 'lucide-react';
 import { COMPANY_INFO } from '../../utils/constants';
 
 const ExpertProfile = () => {
