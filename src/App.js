@@ -10,6 +10,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import AppointmentDetailsPage from './pages/AppointmentDetailsPage';
 import './styles/global.css';
+import ConnectionTest from './components/test/ConnectionTest';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/booking" element={<BookingPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/test" element={<ConnectionTest/>}/>
           
           <Route 
             path="/admin" 
