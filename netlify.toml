@@ -9,6 +9,6 @@
 
 [build.environment]
   # Tell Netlify to allow these specific environment variables in the build
-  REACT_APP_API_URL = ""
+  REACT_APP_API_URL = "https://immigration-agency-api-production.up.railway.app/api"
   REACT_APP_STRIPE_PUBLISHABLE_KEY = ""
   BROWSER = ""
