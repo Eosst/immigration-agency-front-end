@@ -2,7 +2,12 @@
   command = "npm run build"
   publish = "build/"
 
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 [build.environment]
-  # This tells Netlify's secret scanner that it's okay for these specific
-  # variables to be present in the final build files.
-  SECRETS_SCAN_OMIT_KEYS = "REACT_APP_STRIPE_PUBLISHABLE_KEY,REACT_APP_API_URL,BROWSER"
+  # Tell Netlify to allow these specific environment variables in the build
+  REACT_APP_API_URL = ""
+  REACT_APP_STRIPE_PUBLISHABLE_KEY = ""
