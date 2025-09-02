@@ -1,13 +1,22 @@
-// src/services/api.js - Improved version
+// src/services/api.js - Improved with better URL handling
 import axios from 'axios';
 import { getUserTimezone } from '../utils/timezone';
 
-// More robust API URL detection
+// More robust API URL detection with whitespace handling
 const getApiBaseUrl = () => {
-  // Check for production environment variable first
-  if (process.env.REACT_APP_API_URL) {
-    console.log('Using API URL from environment:', process.env.REACT_APP_API_URL);
-    return process.env.REACT_APP_API_URL.replace(/\/+$/, ''); // Remove trailing slashes
+  let apiUrl = process.env.REACT_APP_API_URL;
+  
+  if (apiUrl) {
+    // Remove leading/trailing whitespace and trailing slashes
+    apiUrl = apiUrl.trim().replace(/\/+$/, '');
+    
+    // Ensure it ends with /api
+    if (!apiUrl.endsWith('/api')) {
+      apiUrl += '/api';
+    }
+    
+    console.log('Using API URL from environment:', apiUrl);
+    return apiUrl;
   }
   
   // Fallback for local development
@@ -27,6 +36,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    // Add ngrok warning bypass header
+    'ngrok-skip-browser-warning': 'true',
   },
   timeout: 30000, // 30 second timeout
 });
@@ -38,6 +49,9 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Add ngrok warning bypass for all requests
+    config.headers['ngrok-skip-browser-warning'] = 'true';
     
     // Log the full request URL for debugging
     const fullUrl = `${config.baseURL}${config.url}`;
@@ -107,7 +121,7 @@ export const healthCheck = async () => {
   }
 };
 
-// Rest of your API endpoints remain the same...
+// Rest of your API endpoints...
 export const appointmentAPI = {
   create: (data) => api.post('/appointments', data),
   getById: (id) => api.get(`/appointments/${id}`),
