@@ -9,6 +9,6 @@
 
 [build.environment]
   # Tell Netlify to allow these specific environment variables in the build
-  REACT_APP_API_URL = "https://6f2ecf15d99d.ngrok-free.app"
+  REACT_APP_API_URL = "https://ab79a3823705.ngrok-free.app"
   REACT_APP_STRIPE_PUBLISHABLE_KEY = "pk_test_51RomxkG77hawToJ5gvajOaF7yjjG16DEdzshObyKqtpNunrvS5xcajR1UWp92blpOMx953ami3HahayvrMqmi0kg00H68Er8DL"
   BROWSER = ""

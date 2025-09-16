@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 
 
 // Initialize Stripe - Replace with your publishable key
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key_here');
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_51RomxkG77hawToJ5gvajOaF7yjjG16DEdzshObyKqtpNunrvS5xcajR1UWp92blpOMx953ami3HahayvrMqmi0kg00H68Er8DL');
 
 const AppointmentBooking = () => {
   const location = useLocation();
